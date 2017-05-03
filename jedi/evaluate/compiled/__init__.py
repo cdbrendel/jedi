@@ -209,8 +209,7 @@ class CompiledObject(Context):
         if self.type != 'funcdef':
             return
         types = set([])
-        types |= set(docstrings.find_return_types(self.parent_context,
-                                                    self))
+        types |= set(docstrings.infer_return_types(self))
         debug.dbg('docstrings type return: %s in %s', types, self)
         for name in self._parse_function_doc()[1].split():
             try:
