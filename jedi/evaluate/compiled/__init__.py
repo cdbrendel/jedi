@@ -205,9 +205,12 @@ class CompiledObject(Context):
         return CompiledContextName(self, name)
 
     def _execute_function(self, params):
+        from jedi.evaluate import docstrings
         if self.type != 'funcdef':
             return
-
+        types = set([])
+        types |= set(docstrings.infer_return_types(self))
+        debug.dbg('docstrings type return: %s in %s', types, self)
         for name in self._parse_function_doc()[1].split():
             try:
                 bltn_obj = getattr(_builtins, name)
@@ -219,8 +222,9 @@ class CompiledObject(Context):
                     # TODO do we?
                     continue
                 bltn_obj = create(self.evaluator, bltn_obj)
-                for result in self.evaluator.execute(bltn_obj, params):
-                    yield result
+                types |= set(self.evaluator.execute(bltn_obj, params))
+        for result in types:
+            yield result
 
     def get_self_attributes(self):
         return []  # Instance compatibility

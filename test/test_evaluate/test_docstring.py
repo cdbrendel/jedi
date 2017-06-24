@@ -7,7 +7,7 @@ import jedi
 from ..helpers import unittest
 
 try:
-    import numpydoc
+    import numpydoc  # NOQA
 except ImportError:
     numpydoc_unavailable = True
 else:
@@ -105,6 +105,8 @@ class TestDocstring(unittest.TestCase):
         assert '__init__' in names
         assert 'mro' not in names  # Exists only for types.
 
+    # ---- Numpy Style Tests ---
+
     @unittest.skipIf(numpydoc_unavailable, 'numpydoc module is unavailable')
     def test_numpydoc_docstring(self):
         s = dedent('''
@@ -150,3 +152,68 @@ class TestDocstring(unittest.TestCase):
         assert 'capitalize' in names
         assert 'numerator' in names
         assert 'append' in names
+
+    @unittest.skipIf(numpydoc_unavailable, 'numpydoc module is unavailable')
+    def test_numpy_returns(self):
+        s = dedent('''
+        def foobar(x, y):
+            """
+            Returns
+            ----------
+            int
+            """
+            return x + y
+
+        def bazbiz():
+            z = foobar(2, 2)
+            z.''')
+        script = jedi.Script(s)
+        names = [c.name for c in script.completions()]
+        assert 'numerator' in names
+
+    @unittest.skipIf(numpydoc_unavailable, 'numpydoc module is unavailable')
+    def test_numpy_follow_args(self):
+        from jedi.evaluate import docstrings
+        from jedi._compatibility import builtins
+        numpy_source = dedent('''
+        def foobar(x, y):
+            """
+            Parameters
+            ----------
+            x : int or str or list
+            y : {'foo', 'bar', 100500}, optional
+            """
+            ''')
+        script = jedi.Script(numpy_source)
+        func = script._get_module().names_dict['foobar'][0].parent
+        evaluator = script._evaluator
+        x_param = func.names_dict['x'][0].parent
+        y_param = func.names_dict['y'][0].parent
+        x_type_list = docstrings.follow_param(evaluator, x_param)
+        y_type_list = docstrings.follow_param(evaluator, y_param)
+        assert len(x_type_list) == 3
+        assert len(y_type_list) == 2
+        y_base_objs = set([t.base.obj for t in y_type_list])
+        x_base_objs = set([t.base.obj for t in x_type_list])
+        assert x_base_objs == set([builtins.int, builtins.str, builtins.list])
+        assert y_base_objs == set([builtins.int, builtins.str])
+
+    @unittest.skipIf(numpydoc_unavailable, 'numpydoc module is unavailable')
+    def test_numpy_find_return_types(self):
+        from jedi.evaluate import docstrings
+        from jedi._compatibility import builtins
+        s = dedent('''
+        def foobar(x, y):
+            """
+            Returns
+            ----------
+            int
+            """
+            return x + y
+            ''')
+        script = jedi.Script(s)
+        func = script._get_module().names_dict['foobar'][0].parent
+        evaluator = script._evaluator
+        types = docstrings.find_return_types(evaluator, func)
+        assert len(types) == 1
+        assert types[0].base.obj is builtins.int
